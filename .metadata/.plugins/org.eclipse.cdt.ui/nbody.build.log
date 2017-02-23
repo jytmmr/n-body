@@ -1,0 +1,6 @@
+10:44:47 **** Incremental Build of configuration Debug for project nbody ****
+make all 
+make: Nothing to be done for 'all'.
+
+10:44:47 Build Finished (took 83ms)
+
