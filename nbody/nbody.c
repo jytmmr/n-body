@@ -12,11 +12,12 @@
 #include <pthread.h>
 #include <stdlib.h>
 #include <unistd.h>
-
+#include <pthread.h>
 
 #define G 6.67e-11 // the gravitational constant G
 #define DELTA_T 3600 * 24// time slice
 #define NUM_BODIES 2 // number of particles
+
 
 
 typedef struct {
@@ -27,6 +28,7 @@ typedef struct {
 	double accel_x, accel_y;
 	double r; // radius
 	double mass;
+	int index;
 }Body;
 Body bodies[NUM_BODIES];
 //Body updated_bodies[NUM_BODIES];
@@ -54,15 +56,12 @@ Body add_force(Body body1, Body body2){
 	return body1;
 }
 
-void calculate_updated_velocity(int body_index){
+void *calculate_updated_velocity(void* temp_body){
 	int k;
+	Body* body = temp_body;
 	for(k = 0; k < NUM_BODIES; k++){
-		if(body_index !=  k){
-			bodies[body_index] = add_force(bodies[body_index], bodies[k]);
-		}
+		*body = add_force(*body, bodies[k]);
 	}
-	
-	
 	
 }
 
@@ -77,6 +76,7 @@ void update_body_positions(){
 
 
 int main(){
+	pthread_t threads[NUM_BODIES];
 
 
 	//init the bodies
@@ -112,12 +112,16 @@ int main(){
 
 
 
+
 		int j;
 		// likely the for loop that we will thread
 		for(j = 0; j < NUM_BODIES; j++){
 
-			calculate_updated_velocity(j);
+			pthread_create(&threads[j], NULL, calculate_updated_velocity, (void *) &bodies[j] );
+		}
 
+		for(j = 0; j < NUM_BODIES; j++){
+			pthread_join(threads[j], NULL);
 		}
 
 
