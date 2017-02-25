@@ -17,21 +17,22 @@
 #define G 6.67e-11 // the gravitational constant G
 #define DELTA_T 3600 * 24// time slice
 #define NUM_BODIES 2 // number of particles
+#define THREAD_LIMIT 40
+pthread_mutex_t lock;
+int current_force_calculation_index = 0;
 
 
 
 typedef struct {
 	//char name[] = "test";
-	double px, py; //cartesian coordinates
-	double vx, vy; //velocity
+	double px, py; // cartesian coordinates
+	double vx, vy; // velocity
 	double fx, fy; // force
-	double accel_x, accel_y;
+	double accel_x, accel_y; // acceleration
 	double r; // radius
-	double mass;
-	int index;
+	double mass; // mass
 }Body;
 Body bodies[NUM_BODIES];
-//Body updated_bodies[NUM_BODIES];
 
 Body add_force(Body body1, Body body2){
 
@@ -56,11 +57,20 @@ Body add_force(Body body1, Body body2){
 	return body1;
 }
 
-void *calculate_updated_velocity(void* temp_body){
+void *calculate_updated_velocities(){
 	int k;
-	Body* body = temp_body;
+	int my_force_calculation_index;
+	pthread_mutex_lock(&lock);
+		my_force_calculation_index = current_force_calculation_index;
+		current_force_calculation_index++;
+	pthread_mutex_unlock(&lock);
+
+
+
 	for(k = 0; k < NUM_BODIES; k++){
-		*body = add_force(*body, bodies[k]);
+		if(k !=  my_force_calculation_index){
+			bodies[my_force_calculation_index] = add_force(bodies[my_force_calculation_index], bodies[k]);
+		}
 	}
 	
 }
@@ -76,8 +86,9 @@ void update_body_positions(){
 
 
 int main(){
-	pthread_t threads[NUM_BODIES];
 
+
+	pthread_mutex_init(&lock, NULL);
 
 	//init the bodies
 	Body earth;
@@ -98,9 +109,9 @@ int main(){
 
 
 
-	bodies[0] = sun;
+	bodies[0] = earth;
 
-	bodies[1] = earth;
+	bodies[1] = sun;
 
 
 
@@ -110,23 +121,32 @@ int main(){
 		printf("   bodies[0]: p(%f,%f) with v(%f,%f) a(%f,%f)\n",bodies[0].px, bodies[0].py, bodies[0].vx, bodies[0].vy, bodies[0].accel_x, bodies[0].accel_y);
 		printf("   bodies[1]: p(%f,%f) with v(%f,%f) a(%f,%f)\n",bodies[1].px, bodies[1].py, bodies[1].vx, bodies[1].vy, bodies[1].accel_x, bodies[1].accel_y);
 
+		pthread_t threads[NUM_BODIES];
+		if(NUM_BODIES < THREAD_LIMIT){
+			int j;
+			for(j = 0; j < NUM_BODIES; j++){
+				pthread_create(&threads[j], NULL, calculate_updated_velocities, NULL);
+			}
+			for(j = 0; j < NUM_BODIES; j++){
+				pthread_join(threads[j], NULL);
+			}
+		}
+//		else{
+//			int j;
+//			for(j = 0; j < NUM_BODIES; j++){
+//
+//				pthread_create(&threads[j], NULL, calculate_updated_velocity, (void *) &bodies[j] );
+//			}
+//
+//			for(j = 0; j < NUM_BODIES; j++){
+//				pthread_join(threads[j], NULL);
+//			}
+//		}
+		current_force_calculation_index = 0;
 
 
-
-		int j;
 		// likely the for loop that we will thread
-		for(j = 0; j < NUM_BODIES; j++){
-
-			pthread_create(&threads[j], NULL, calculate_updated_velocity, (void *) &bodies[j] );
-		}
-
-		for(j = 0; j < NUM_BODIES; j++){
-			pthread_join(threads[j], NULL);
-		}
-
-
 		update_body_positions();
-			
 	}
 
 }
