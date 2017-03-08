@@ -27,10 +27,10 @@
 
 #define G 6.67e-11 // the gravitational constant G
 #define DELTA_T 3600 * 24// time slice
-#define NUM_BODIES 2 // number of particles
 #define THREAD_LIMIT 40
-#define ITERATIONS 366
+
 #define TIMER_DELAY 40 //delay for buffer in ms. 40 is about the slowest with minimal lags/jumps. 50 is good but slow
+#define MAX_NAME_SIZE 20
 /**
  * Globals
  */
@@ -39,24 +39,26 @@ int current_force_calculation_index = 0;
 double bounds;
 double largestM;
 int currentIteration = 0;
+int NUM_BODIES; // number of particles
+int ITERATIONS;
 
 /**
  * Body struct for the program
  */
 typedef struct {
-	//char name[] = "test";
+	char name[MAX_NAME_SIZE];
 	double px, py; // cartesian coordinates
 	double vx, vy; // velocity
-	double fx, fy; // force
+	//double fx, fy; // force
 	double accel_x, accel_y; // acceleration
-	GLfloat red,green,blue;
+	GLfloat red, green, blue;
 	double r; // radius
 	double mass; // mass
 } Body;
 /**
  * Global body array
  */
-Body bodies[NUM_BODIES];
+Body *bodies;
 
 //below are the function for calculating n-body problem
 Body add_force(Body body1, Body body2) {
@@ -112,12 +114,13 @@ void update_body_positions() {
  * drawCircle draws the n=bodies
  */
 void drawCircle(void) {
-	int numBodies = 2;
+	int numBodies = NUM_BODIES;
 
 	for (int nIndex = 0; nIndex < numBodies; nIndex++) {
 
 		glPopMatrix();
-		glColor3f(bodies[nIndex].red,bodies[nIndex].green,bodies[nIndex].blue);
+		glColor3f(bodies[nIndex].red, bodies[nIndex].green,
+				bodies[nIndex].blue);
 		int num_segments = 50;
 		float cx, cy, radius;
 		//printf("large x is %f", largestX);
@@ -138,7 +141,6 @@ void drawCircle(void) {
 		}
 		glEnd();
 		glPushMatrix();
-
 	}
 
 }
@@ -148,16 +150,14 @@ void drawCircle(void) {
  */
 void advanceProgram() {
 
-	//printf("HI I GOT HERE %d\n", currentIteration);
-	//fflush(stdout);
 
 //	printf("%d\n", currentIteration);
 	//printf("   bodies[0]: p(%f,%f) with v(%f,%f) a(%f,%f)\n", bodies[0].px,
-		//	bodies[0].py, bodies[0].vx, bodies[0].vy, bodies[0].accel_x,
-		//	bodies[0].accel_y);
+	//	bodies[0].py, bodies[0].vx, bodies[0].vy, bodies[0].accel_x,
+	//	bodies[0].accel_y);
 	//printf("   bodies[1]: p(%f,%f) with v(%f,%f) a(%f,%f)\n", bodies[1].px,
-		//	bodies[1].py, bodies[1].vx, bodies[1].vy, bodies[1].accel_x,
-		//	bodies[1].accel_y);
+	//	bodies[1].py, bodies[1].vx, bodies[1].vy, bodies[1].accel_x,
+	//	bodies[1].accel_y);
 
 	//Index that is sent to each thread telling it which body to update
 	current_force_calculation_index = 0;
@@ -202,13 +202,12 @@ void display(void) {
 	//but with timer for smoother animation it goes in timer function, timer is called in main
 }
 
-
 /**
  * Timer function that dictates fastest rendering for consistent, smooth animation
  */
-void timer(int callBackValue){
+void timer(int callBackValue) {
 	glutPostRedisplay();
-	glutTimerFunc(TIMER_DELAY,timer,callBackValue);
+	glutTimerFunc(TIMER_DELAY, timer, callBackValue);
 }
 
 /**
@@ -227,34 +226,44 @@ void init(void) {
 }
 
 int main(int argc, char **argv) {
+	//init the mutex for threading
 	pthread_mutex_init(&lock, NULL);
 
-//init the bodies
-	Body earth;
-	earth.px = 1.496e11;
-	earth.py = 0;
-	earth.vx = 0;
-	earth.vy = 2.980 * pow(10, 4);
-	earth.mass = 5.972e24;
-	earth.red = .885; //can find color rgb at prideout.net/archive/colors.php
-	earth.green = .439;
-	earth.blue = .839;
+	//read from file for the data
+	FILE *file;
+	file = fopen("nbodyData.txt", "r");
+	if (file == NULL) {
+		perror("Error opening file");
+		printf("Error code opening file: %d\n", errno);
+		printf("Error opening file: %s\n", strerror( errno));
+		exit(-1);
+	}
 
-	Body sun;
-	sun.px = 0;
-	sun.py = 0;
-	sun.vx = 0;
-	sun.vy = 0;
-	sun.mass = 1.989e30;
-	sun.red = 1.0;
-	sun.green = .871;
-	sun.blue = .0;
+	//get the number of bodies and create the array
+	fscanf(file, "%d", &NUM_BODIES);
+	bodies = malloc(sizeof(*bodies) * NUM_BODIES);
+	if (bodies == NULL) {
+		printf("bodies allocation failed");
+	}
 
-	bodies[0] = earth;
-	bodies[1] = sun;
+	//read in the number of iterations to do
+	fscanf(file, "%d", &ITERATIONS);
 
+	//read the nbody data into the body objects
+	for (int i = 0; i < NUM_BODIES; i++) {
+		fscanf(file, "%s", &bodies[i].name[0]);	//if name > 20 characters, errors will happen
+		fscanf(file, "%lf", &bodies[i].px);
+		fscanf(file, "%lf", &bodies[i].py);
+		fscanf(file, "%lf", &bodies[i].vx);
+		fscanf(file, "%lf", &bodies[i].vy);
+		fscanf(file, "%lf", &bodies[i].mass);
+		fscanf(file, "%f", &bodies[i].red);
+		fscanf(file, "%f", &bodies[i].green);
+		fscanf(file, "%f", &bodies[i].blue);
+	}
 
-
+	//find the largest x and Y, in order to have an appropriate window to view
+	//the model through openGL
 	double thisLargestX = 0;
 	double thisLargestY = 0;
 	double thisLargestM = 0;
@@ -269,9 +278,13 @@ int main(int argc, char **argv) {
 			thisLargestM = bodies[i].mass;
 		}
 	}
-//set globals for mass and coordinates
+
+	//set globals for mass and coordinates
+	//onenGL fits things into a -1 to 1 plane, which can be adjusted but
+	//it is easier to just fit everything into that plane
+	//so we later divide all numbers by the largest to give a value between 0 and 1
 	if (thisLargestX > thisLargestY) {
-		bounds = thisLargestX + thisLargestX * .20;
+		bounds = thisLargestX + thisLargestX * .20;	//add 20% because max radius is .20 and largest possible is 1
 	} else {
 		bounds = thisLargestY + thisLargestY * .20;
 	}
@@ -284,11 +297,12 @@ int main(int argc, char **argv) {
 	glutInitWindowPosition(10, 10);
 
 	glutCreateWindow("N-Body");
-	glutDisplayFunc(display); //this is the one continuously called
+	glutDisplayFunc(display); //this is the one continuously called, calls our nbody functions
 	timer(0);
 	init();
 	glColor3f(.7, 0.8, .2);
 	glutMainLoop();
 
+	free(bodies);
 	return 0;
 }
