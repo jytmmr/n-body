@@ -1,0 +1,13 @@
+5
+366
+sun		0			0	0	0		1.989e30	1.0	.871	0.0
+earth	1.496e11	0	0	2.98e4 	5.972e24	.885	.439	.839
+mars	2.279e11	0	0	2.41e4	6.419e23	.698	.133	.133
+mercury	5.79e10		0	0	4.79e4	3.302e23	.690	.769	.871
+venus	1.082e11	0	0	3.5e4	4.869e24	1.00	.627	.478
+
+#Data taken from http://www.cis.upenn.edu/~cis110/13sp/hw/hw02/nbody.shtml
+#organization structure:
+#Number of bodies
+#number of iterations
+#nbodyname  px  py  vx  xy  mass  r g b
