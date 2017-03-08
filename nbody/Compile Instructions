@@ -1,0 +1,4 @@
+gcc "-IC:\\MinGW\\freeglut\\include\\" -O0 -g3 -Wall -c -fmessage-length=0 -o helloGL.o "..\\helloGL.c" 
+gcc "-LC:\\MinGW\\freeglut\\lib\\" -o hellogl.exe helloGL.o nbodygl.o runGL.o -lopengl32 -lpthread -lglu32 -lfreeglut 
+
+These are the 2 commands that it takes to compile this on my computer - the -"IC..." paths are relative to my computer, but are necessary for getting openGL and Glut included in the build path on a windows machine at least
