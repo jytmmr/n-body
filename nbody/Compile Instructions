@@ -5,3 +5,6 @@ These are the 2 commands that it takes to compile this on my Windows computer - 
 
 FOR LINUX COMPILE:
 gcc -o nbody nbody.c -lpthread -lGL -lGLU -lglut -lm
+
+We have our program set up for 12 n-bodies - 8 planets, 1 sun, Pluto, Ceres the astroid, Our Moon. For a better view, change the nbodyData.txt first line to 6 - to read in the first 6 planets, which is much easier to see than trying to view all the planets because Pluto is wayyyyy out there and zooms out the screen
+
