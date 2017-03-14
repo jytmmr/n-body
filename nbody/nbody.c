@@ -39,14 +39,13 @@
  * Globals
  */
 pthread_mutex_t lock;
-//pthread_mutex_t shortestLock;
 int current_force_calculation_index = 0;
 double bounds;
 double largestM;
 int currentIteration = 0;
 int NUM_BODIES; // number of particles
-int ITERATIONS;
-//double shortestDistance = 1e10;
+
+
 /**
  * Body struct for the program
  */
@@ -65,20 +64,17 @@ typedef struct {
 Body *bodies;
 
 //below are the function for calculating n-body problem
+
+/*
+	This adds the forces on an n-body, and saves the new velocity of that body 
+	@param body1 and body2 are the 2 bodies being compared
+*/
 Body add_force(Body body1, Body body2) {
 
 	double delta_x = body2.px - body1.px;
 	double delta_y = body2.py - body1.py;
 	double d = sqrt(pow(delta_x, 2) + pow(delta_y, 2)); // distance between the bodies
 	
-	/*
-	pthread_mutex_lock(&shortestLock);
-	if(d < shortestDistance)
-	{
-		shortestDistance = d;
-	}
-	pthread_mutex_unlock(&shortestLock);
-	*/
 
 	double F = G * (body2.mass * body1.mass) / pow(d, 2);
 	double Fx = F * delta_x / d;
@@ -94,14 +90,21 @@ Body add_force(Body body1, Body body2) {
 	return body1;
 }
 
+/*
+ calculate the velocities
+ This calls AddForce method on each nbody pair 
+ 
+*/
 void* calculate_updated_velocities() {
 	int k;
 	int my_force_calculation_index;
+	//lock the mutex for the index
 	pthread_mutex_lock(&lock);
-	my_force_calculation_index = current_force_calculation_index;
-	current_force_calculation_index++;
+		my_force_calculation_index = current_force_calculation_index;
+		current_force_calculation_index++;
 	pthread_mutex_unlock(&lock);
 
+	//loop through the n-bodies
 	for (k = 0; k < NUM_BODIES; k++) {
 		if (k != my_force_calculation_index) {
 			bodies[my_force_calculation_index] = add_force(
@@ -111,6 +114,7 @@ void* calculate_updated_velocities() {
 	return 0;
 }
 
+//after all velocities are updated, update the x and y of each nbody
 void update_body_positions() {
 	int i;
 	for (i = 0; i < NUM_BODIES; i++) {
@@ -138,15 +142,12 @@ void drawCircle(void) {
 				bodies[nIndex].blue);
 		int num_segments = 50;
 		float cx, cy, radius;
-		//printf("large x is %f", largestX);
-		//printf("large y is %f", largestY);
-		//need to make px inside of -1 to 1
+		//need to make px inside of -1 to 1 to scale
 		cx = (bodies[nIndex].px / bounds) ;
 		cy = (bodies[nIndex].py / bounds) ; //center of the circle
 		radius = bodies[nIndex].r;
-		//if(radius<.01)
+		
 
-		//printf("For n-body %i, cx is %f and cy is %f)\n", nIndex, cx, cy);
 		glBegin(GL_TRIANGLE_FAN);
 		for (int i = 0; i < num_segments; i++) {
 			float theta = 2.0 * 3.1415926 * i / num_segments;
@@ -166,14 +167,7 @@ void drawCircle(void) {
 void advanceProgram() {
 
 
-	//printf("%d\n", currentIteration);
-	//printf("   bodies[0]: p(%f,%f) with v(%f,%f) a(%f,%f)\n", bodies[1].px,
-		//bodies[1].py, bodies[1].vx, bodies[1].vy, bodies[1].accel_x,
-		//bodies[1].accel_y);
-	//printf("   bodies[1]: p(%f,%f) with v(%f,%f) a(%f,%f)\n", bodies[5].px,
-		//bodies[5].py, bodies[5].vx, bodies[5].vy, bodies[5].accel_x,
-		//bodies[5].accel_y);
-
+	
 	//Index that is sent to each thread telling it which body to update
 	current_force_calculation_index = 0;
 	pthread_t threads[NUM_BODIES];
@@ -186,21 +180,9 @@ void advanceProgram() {
 		for (j = 0; j < NUM_BODIES; j++) {
 			pthread_join(threads[j], NULL);
 		}
-	}		//else{
-//			int j;
-//			for(j = 0; j < NUM_BODIES; j++){
-//
-//				pthread_create(&threads[j], NULL, calculate_updated_velocity, (void *) &bodies[j] );
-//			}
-//
-//			for(j = 0; j < NUM_BODIES; j++){
-//				pthread_join(threads[j], NULL);
-//			}
-//		}
+	}		
 
-	//double tScale = DELTA_T * (shortestDistance /1e10);
 	update_body_positions();
-	//shortestDistance = 1e10;
 	currentIteration++; 
 }
 
@@ -233,8 +215,6 @@ void timer(int callBackValue) {
  */
 void init(void) {
 	glEnable(GL_DEPTH_TEST); //makes sure to show closer figure in z-space, not just last drawn
-//glCullFace(GL_BACK);
-//glEnable(GL_CULL_FACE); // these are for drawing - otherwise clockwise leads to back facing image, these make that not happen
 
 	glLoadIdentity();
 	gluPerspective(45.0f, (GLfloat) WIDTH / (GLfloat) HEIGHT, .1f, 100000.0f);
@@ -246,20 +226,11 @@ void init(void) {
 int main(int argc, char **argv) {
 	//init the mutex for threading
 	pthread_mutex_init(&lock, NULL);
-	//pthread_mutex_init(&shortestLock,NULL);
 
 	//read from file for the data
 	FILE *file;
 	file = fopen("nbodyData.txt", "r");
-	/*
-	if (file == NULL) {
-		int errno;
-		perror("Error opening file");
-		printf("Error code opening file: %d\n", errno);
-		printf("Error opening file: %s\n", strerror( errno));
-		exit(-1);
-	}
-	*/
+	
 
 	//get the number of bodies and create the array
 	fscanf(file, "%d", &NUM_BODIES);
@@ -268,8 +239,6 @@ int main(int argc, char **argv) {
 		printf("bodies allocation failed");
 	}
 
-	//read in the number of iterations to do
-	fscanf(file, "%d", &ITERATIONS);
 
 	//read the nbody data into the body objects
 	for (int i = 0; i < NUM_BODIES; i++) {
@@ -321,6 +290,7 @@ int main(int argc, char **argv) {
 	glutInitWindowPosition(10, 10);
 
 	glutCreateWindow("N-Body");
+	
 	glutDisplayFunc(display); //this is the one continuously called, calls our nbody functions
 	timer(0);
 	init();
