@@ -17,4 +17,4 @@ Ceres	4.45e11		0	0	1.7e4	9.39e20		.184	.31		.310			.0215
 #organization structure:
 #Number of bodies
 #number of iterations
-#nbodyname  px  py  vx  xy  mass  r g b
+#nbodyname  px  py  vx  xy  mass  r g b Radius
