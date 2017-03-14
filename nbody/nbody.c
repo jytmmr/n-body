@@ -9,6 +9,8 @@
 /**
  * Included headers
  * Note <GL/glut.h> may not be included by default on Windows C installations
+	To compile on linux:
+	gcc -o nbody nbody.c -lpthread -lGL -lGLU -lglut -lm
  */
 #include <stdio.h>
 #include <math.h>
@@ -17,31 +19,34 @@
 #include <unistd.h>
 #include <pthread.h>
 #include <GL/glut.h>
+#include <string.h>
+#include <float.h>
 
 /**
  * Constants
  */
-#define HEIGHT 600
-#define WIDTH 768
+#define HEIGHT 1080
+#define WIDTH 1080
 #define PI 3.1415926535897932384626433832795
 
 #define G 6.67e-11 // the gravitational constant G
-#define DELTA_T 3600 * 24// time slice
+#define DELTA_T 3600* 240// time slice
 #define THREAD_LIMIT 40
 
-#define TIMER_DELAY 40 //delay for buffer in ms. 40 is about the slowest with minimal lags/jumps. 50 is good but slow
+#define TIMER_DELAY 50 //delay for buffer in ms. 40 is about the slowest with minimal lags/jumps. 50 is good but slow
 #define MAX_NAME_SIZE 20
 /**
  * Globals
  */
 pthread_mutex_t lock;
+//pthread_mutex_t shortestLock;
 int current_force_calculation_index = 0;
 double bounds;
 double largestM;
 int currentIteration = 0;
 int NUM_BODIES; // number of particles
 int ITERATIONS;
-
+//double shortestDistance = 1e10;
 /**
  * Body struct for the program
  */
@@ -49,7 +54,6 @@ typedef struct {
 	char name[MAX_NAME_SIZE];
 	double px, py; // cartesian coordinates
 	double vx, vy; // velocity
-	//double fx, fy; // force
 	double accel_x, accel_y; // acceleration
 	GLfloat red, green, blue;
 	double r; // radius
@@ -66,6 +70,15 @@ Body add_force(Body body1, Body body2) {
 	double delta_x = body2.px - body1.px;
 	double delta_y = body2.py - body1.py;
 	double d = sqrt(pow(delta_x, 2) + pow(delta_y, 2)); // distance between the bodies
+	
+	/*
+	pthread_mutex_lock(&shortestLock);
+	if(d < shortestDistance)
+	{
+		shortestDistance = d;
+	}
+	pthread_mutex_unlock(&shortestLock);
+	*/
 
 	double F = G * (body2.mass * body1.mass) / pow(d, 2);
 	double Fx = F * delta_x / d;
@@ -73,7 +86,8 @@ Body add_force(Body body1, Body body2) {
 
 	body1.accel_x = Fx / body1.mass;
 	body1.accel_y = Fy / body1.mass;
-
+	
+	
 	body1.vx = body1.vx + DELTA_T * body1.accel_x;
 	body1.vy = body1.vy + DELTA_T * body1.accel_y;
 
@@ -100,9 +114,10 @@ void* calculate_updated_velocities() {
 void update_body_positions() {
 	int i;
 	for (i = 0; i < NUM_BODIES; i++) {
+		
+		
 		bodies[i].px = bodies[i].px + DELTA_T * bodies[i].vx;
 		bodies[i].py = bodies[i].py + DELTA_T * bodies[i].vy;
-
 	}
 
 }
@@ -126,9 +141,9 @@ void drawCircle(void) {
 		//printf("large x is %f", largestX);
 		//printf("large y is %f", largestY);
 		//need to make px inside of -1 to 1
-		cx = bodies[nIndex].px / bounds;
-		cy = bodies[nIndex].py / bounds; //center of the circle
-		radius = .05; // (bodies[nIndex].mass / largestM) * .2; // largest mass will have radius of .3, all others scaled down from that
+		cx = (bodies[nIndex].px / bounds) ;
+		cy = (bodies[nIndex].py / bounds) ; //center of the circle
+		radius = bodies[nIndex].r;
 		//if(radius<.01)
 
 		//printf("For n-body %i, cx is %f and cy is %f)\n", nIndex, cx, cy);
@@ -151,13 +166,13 @@ void drawCircle(void) {
 void advanceProgram() {
 
 
-//	printf("%d\n", currentIteration);
-	//printf("   bodies[0]: p(%f,%f) with v(%f,%f) a(%f,%f)\n", bodies[0].px,
-	//	bodies[0].py, bodies[0].vx, bodies[0].vy, bodies[0].accel_x,
-	//	bodies[0].accel_y);
-	//printf("   bodies[1]: p(%f,%f) with v(%f,%f) a(%f,%f)\n", bodies[1].px,
-	//	bodies[1].py, bodies[1].vx, bodies[1].vy, bodies[1].accel_x,
-	//	bodies[1].accel_y);
+	//printf("%d\n", currentIteration);
+	//printf("   bodies[0]: p(%f,%f) with v(%f,%f) a(%f,%f)\n", bodies[1].px,
+		//bodies[1].py, bodies[1].vx, bodies[1].vy, bodies[1].accel_x,
+		//bodies[1].accel_y);
+	//printf("   bodies[1]: p(%f,%f) with v(%f,%f) a(%f,%f)\n", bodies[5].px,
+		//bodies[5].py, bodies[5].vx, bodies[5].vy, bodies[5].accel_x,
+		//bodies[5].accel_y);
 
 	//Index that is sent to each thread telling it which body to update
 	current_force_calculation_index = 0;
@@ -182,8 +197,11 @@ void advanceProgram() {
 //				pthread_join(threads[j], NULL);
 //			}
 //		}
+
+	//double tScale = DELTA_T * (shortestDistance /1e10);
 	update_body_positions();
-	currentIteration++;
+	//shortestDistance = 1e10;
+	currentIteration++; 
 }
 
 /**
@@ -228,16 +246,20 @@ void init(void) {
 int main(int argc, char **argv) {
 	//init the mutex for threading
 	pthread_mutex_init(&lock, NULL);
+	//pthread_mutex_init(&shortestLock,NULL);
 
 	//read from file for the data
 	FILE *file;
 	file = fopen("nbodyData.txt", "r");
+	/*
 	if (file == NULL) {
+		int errno;
 		perror("Error opening file");
 		printf("Error code opening file: %d\n", errno);
 		printf("Error opening file: %s\n", strerror( errno));
 		exit(-1);
 	}
+	*/
 
 	//get the number of bodies and create the array
 	fscanf(file, "%d", &NUM_BODIES);
@@ -260,6 +282,7 @@ int main(int argc, char **argv) {
 		fscanf(file, "%f", &bodies[i].red);
 		fscanf(file, "%f", &bodies[i].green);
 		fscanf(file, "%f", &bodies[i].blue);
+		fscanf(file, "%lf", &bodies[i].r);
 	}
 
 	//find the largest x and Y, in order to have an appropriate window to view
@@ -277,6 +300,7 @@ int main(int argc, char **argv) {
 		if (thisLargestM < bodies[i].mass) {
 			thisLargestM = bodies[i].mass;
 		}
+		
 	}
 
 	//set globals for mass and coordinates
